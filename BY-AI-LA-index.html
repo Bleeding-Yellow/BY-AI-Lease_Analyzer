@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bleeding-Yellow AI Lease Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Playfair+Display:wght@700&amp;display=swap');
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .logo-font { font-family: 'Playfair Display', serif; }
+        .bleeding-text {
+            text-shadow: 
+                0 0 5px #facc15,
+                0 0 10px #facc15,
+                0 0 20px #eab308,
+                -2px -2px 0 #b91c1c,
+                2px -2px 0 #b91c1c;
+        }
+        .drop-zone {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .drop-zone.dragover {
+            background-color: #fefce8;
+            border-color: #eab308;
+            transform: scale(1.02);
+        }
+        .file-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .modal {
+            animation: fadeInScale 0.3s ease forwards;
+        }
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-white text-gray-900 antialiased">
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <!-- HEADER -->
+        <header class="flex items-center justify-between mb-12">
+            <!-- Logo -->
+            <div class="flex items-center gap-x-4">
+                <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="64" height="64" rx="16" fill="#111827"/>
+                    <text x="32" y="48" font-family="Playfair Display, serif" font-size="42" fill="#facc15" text-anchor="middle" dominant-baseline="middle" class="bleeding-text">BY</text>
+                </svg>
+                <div>
+                    <h1 class="logo-font text-4xl font-bold tracking-tighter bleeding-text text-yellow-400">Bleeding Yellow</h1>
+                    <p class="text-xs font-medium tracking-[2px] text-gray-500 -mt-1">AI LEASE ANALYZER</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-x-8 text-sm font-medium">
+                <a href="#" onclick="clearAll()" class="hover:text-yellow-600 transition-colors">Reset</a>
+                <div class="h-6 w-px bg-gray-200"></div>
+                <span class="px-4 py-2 bg-yellow-100 text-yellow-800 rounded-3xl text-xs font-semibold flex items-center gap-x-1">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    CLIENT-SIDE AI
+                </span>
+            </div>
+        </header>
+
+        <!-- MAIN UPLOAD -->
+        <div class="max-w-3xl mx-auto">
+            <div class="text-center mb-10">
+                <h2 class="text-5xl font-semibold tracking-tighter mb-3">Lease Analyzer</h2>
+                <p class="text-lg text-gray-600 max-w-md mx-auto">Upload up to 3 lease documents (PDF, DOC/DOCX, TXT, XLS/XLSX). AI extracts Lease ID, Name, Dates, Status, Creation date &amp; Signers.</p>
+            </div>
+
+            <!-- Drop Zone -->
+            <div id="drop-zone" 
+                 class="drop-zone border-3 border-dashed border-gray-300 rounded-3xl p-12 text-center hover:border-yellow-400 bg-white">
+                <div class="mx-auto w-16 h-16 mb-6 flex items-center justify-center bg-yellow-100 rounded-2xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903 5 5 0 0110.025 1.65L12 14l-3-3m0 0l-3 3m3-3v9" />
+                    </svg>
+                </div>
+                <p class="text-xl font-medium text-gray-700 mb-2">Drop your lease files here</p>
+                <p class="text-sm text-gray-500 mb-6">or</p>
+                <button onclick="document.getElementById('file-input').click()" 
+                        class="inline-flex items-center gap-x-3 bg-black hover:bg-gray-800 text-white px-8 py-4 rounded-2xl font-semibold text-lg transition-all active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    ADD FILES (max 3)
+                </button>
+                <input type="file" id="file-input" multiple accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" class="hidden" onchange="handleFileSelect(event)">
+                <p class="text-xs text-gray-400 mt-8">Supported: PDF • Word • Notepad • Excel</p>
+            </div>
+
+            <!-- Uploaded Files List -->
+            <div id="file-list" class="mt-8"></div>
+
+            <!-- Analyze Button -->
+            <div class="flex justify-center mt-10">
+                <button id="analyze-btn" 
+                        onclick="analyzeFiles()"
+                        disabled
+                        class="disabled:bg-gray-200 disabled:text-gray-400 bg-yellow-400 hover:bg-yellow-500 transition-all text-black font-bold text-2xl px-16 py-6 rounded-3xl flex items-center gap-x-4 shadow-xl shadow-yellow-200">
+                    <span>ANALYZE WITH AI</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14 5l7 7-7 7M5 12h14" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- RESULTS SECTION -->
+        <div id="results-section" class="hidden mt-20">
+            <div class="flex items-center justify-between mb-8">
+                <h2 class="text-4xl font-semibold tracking-tighter">AI Analysis Results</h2>
+                <button onclick="clearAll()" 
+                        class="text-sm font-medium text-gray-500 hover:text-red-600 flex items-center gap-x-2">
+                    <span>Clear All</span>
+                </button>
+            </div>
+            
+            <div id="results-grid" class="grid grid-cols-1 lg:grid-cols-3 gap-8"></div>
+        </div>
+    </div>
+
+    <!-- FULL TEXT MODAL -->
+    <div id="modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div class="modal bg-white max-w-4xl w-full mx-6 rounded-3xl shadow-2xl max-h-[85vh] flex flex-col">
+            <div class="px-8 py-6 border-b flex items-center justify-between">
+                <h3 id="modal-title" class="font-semibold text-xl"></h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div id="modal-content" class="p-8 overflow-auto text-sm font-mono whitespace-pre-wrap bg-gray-50 flex-1"></div>
+            <div class="px-8 py-5 border-t flex justify-end">
+                <button onclick="closeModal()" 
+                        class="px-8 py-3 bg-gray-100 hover:bg-gray-200 rounded-2xl font-medium">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center text-xs text-gray-400 mt-20 pb-8">
+        Bleeding-Yellow AI Lease Analyzer • Client-side only • Open in any modern browser • Built for GitHub demo
+    </footer>
+
+    <script>
+        // Tailwind script already loaded via CDN
+        // PDF.js worker
+        if (typeof pdfjsLib !== "undefined") {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        }
+
+        let uploadedFiles = [];
+
+        // Handle file selection
+        function handleFileSelect(e) {
+            processFiles(e.target.files);
+        }
+
+        // Drag & drop handlers
+        const dropZone = document.getElementById('drop-zone');
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            processFiles(e.dataTransfer.files);
+        });
+
+        function processFiles(files) {
+            const validExt = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx'];
+            let newFiles = Array.from(files).filter(file => {
+                const ext = file.name.toLowerCase().split('.').pop();
+                return validExt.includes(ext);
+            });
+
+            if (newFiles.length === 0) {
+                alert("Only PDF, DOC/DOCX, TXT, XLS/XLSX files allowed.");
+                return;
+            }
+
+            // Enforce max 3 files total
+            if (uploadedFiles.length + newFiles.length > 3) {
+                alert("Maximum 3 files at a time. Please remove some files first.");
+                newFiles = newFiles.slice(0, 3 - uploadedFiles.length);
+            }
+
+            uploadedFiles = [...uploadedFiles, ...newFiles];
+            renderFileList();
+            updateAnalyzeButton();
+        }
+
+        function renderFileList() {
+            const container = document.getElementById('file-list');
+            container.innerHTML = '';
+
+            if (uploadedFiles.length === 0) return;
+
+            const ul = document.createElement('div');
+            ul.className = 'space-y-3';
+
+            uploadedFiles.forEach((file, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between bg-white border border-gray-200 rounded-2xl px-6 py-4 file-card shadow-sm';
+                div.innerHTML = `
+                    <div class="flex items-center gap-x-4">
+                        <span class="text-2xl">📄</span>
+                        <div>
+                            <p class="font-medium text-gray-800">${file.name}</p>
+                            <p class="text-xs text-gray-400">${(file.size / 1024 / 1024).toFixed(2)} MB • ${file.type || 'Unknown'}</p>
+                        </div>
+                    </div>
+                    <button onclick="removeFile(${index})" 
+                            class="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl text-sm font-medium transition-colors">Remove</button>
+                `;
+                ul.appendChild(div);
+            });
+
+            container.appendChild(ul);
+        }
+
+        function removeFile(index) {
+            uploadedFiles.splice(index, 1);
+            renderFileList();
+            updateAnalyzeButton();
+        }
+
+        function updateAnalyzeButton() {
+            const btn = document.getElementById('analyze-btn');
+            btn.disabled = uploadedFiles.length === 0;
+        }
+
+        // Extract raw text from any supported file
+        async function getTextFromFile(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const ext = file.name.toLowerCase().split('.').pop();
+
+            if (ext === 'txt') {
+                return await file.text();
+            }
+
+            if (ext === 'pdf') {
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                const pdf = await loadingTask.promise;
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    fullText += textContent.items.map(item => item.str).join(' ') + '\n\n';
+                }
+                return fullText;
+            }
+
+            if (ext === 'doc' || ext === 'docx') {
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                return result.value;
+            }
+
+            if (ext === 'xls' || ext === 'xlsx') {
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                let fullText = '';
+                workbook.SheetNames.forEach(name => {
+                    const sheet = workbook.Sheets[name];
+                    fullText += XLSX.utils.sheet_to_csv(sheet) + '\n\n';
+                });
+                return fullText;
+            }
+
+            return '';
+        }
+
+        // Simple AI-style regex parser
+        function extractLeaseInfo(text) {
+            const lower = text.toLowerCase();
+
+            const leaseId = text.match(/lease\s*(?:id|no|number)[:\s]*([a-z0-9\-]+)/i)?.[1] || 
+                           text.match(/contract\s*(?:id|no)[:\s]*([a-z0-9\-]+)/i)?.[1] || 
+                           'Not detected';
+
+            const leaseName = text.match(/lease\s*name[:\s]*([^\n\r]+)/i)?.[1]?.trim() || 
+                             text.match(/property[:\s]*([^\n\r]+)/i)?.[1]?.trim() || 
+                             'Not detected';
+
+            // Date regex (very flexible)
+            const dateRegex = /\b(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}|\d{4}[-\/]\d{1,2}[-\/]\d{1,2}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4})\b/gi;
+            const dates = text.match(dateRegex) || [];
+            const startDate = dates[0] || 'Not detected';
+            const endDate = dates.length > 1 ? dates[1] : 'Not detected';
+
+            const status = text.match(/status[:\s]*([^\n\r]+)/i)?.[1]?.trim() ||
+                          (lower.includes('active') ? 'Active' :
+                           lower.includes('expired') ? 'Expired' : 'Not detected');
+
+            const signedBy = text.match(/signed by[:\s]*(.+?)(?:\n|$)/i)?.[1]?.trim() ||
+                            text.match(/signatories?[:\s]*(.+?)(?:\n|$)/i)?.[1]?.trim() ||
+                            'Not detected';
+
+            return {
+                leaseId,
+                leaseName,
+                startDate,
+                endDate,
+                status,
+                signedBy
+            };
+        }
+
+        // Create result card
+        function createResultCard(fileName, info, rawText) {
+            const card = document.createElement('div');
+            card.className = 'bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden file-card';
+            
+            const html = `
+                <div class="px-7 pt-7 pb-5 bg-gradient-to-r from-yellow-50 to-white border-b">
+                    <div class="flex items-start gap-x-4">
+                        <span class="text-4xl">📄</span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-lg truncate">${fileName}</p>
+                            <p class="text-xs text-emerald-600 mt-1">✓ Analyzed successfully</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-7 space-y-6 text-sm">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <p class="text-gray-400 text-xs mb-1">LEASE ID</p>
+                            <p class="font-mono font-medium">${info.leaseId}</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-400 text-xs mb-1">LEASE NAME</p>
+                            <p class="font-medium">${info.leaseName}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <p class="text-gray-400 text-xs mb-1">START DATE</p>
+                            <p class="font-medium">${info.startDate}</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-400 text-xs mb-1">END DATE</p>
+                            <p class="font-medium">${info.endDate}</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <p class="text-gray-400 text-xs mb-1">STATUS</p>
+                        <span class="inline-flex items-center px-4 py-1 rounded-3xl text-xs font-semibold ${info.status.toLowerCase() === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">
+                            ${info.status}
+                        </span>
+                    </div>
+                    
+                    <div>
+                        <p class="text-gray-400 text-xs mb-1">FILE CREATED</p>
+                        <p class="text-gray-600">${new Date(uploadedFiles.find(f => f.name === fileName).lastModified).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-gray-400 text-xs mb-1">SIGNED BY</p>
+                        <p class="font-medium">${info.signedBy}</p>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 px-7 py-5 border-t flex gap-x-3">
+                    <button onclick="showFullText('${fileName}', \`${rawText.replace(/`/g, '\\`')}\`)" 
+                            class="flex-1 text-xs font-medium bg-white border border-gray-200 hover:border-gray-300 py-3 rounded-2xl transition-colors">
+                        VIEW FULL EXTRACTED TEXT
+                    </button>
+                </div>
+            `;
+            card.innerHTML = html;
+            return card;
+        }
+
+        function showFullText(fileName, rawText) {
+            document.getElementById('modal-title').textContent = `Extracted Text — ${fileName}`;
+            document.getElementById('modal-content').textContent = rawText || 'No text extracted (file may be image-based PDF).';
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // Main analyze function
+        async function analyzeFiles() {
+            const resultsSection = document.getElementById('results-section');
+            const grid = document.getElementById('results-grid');
+            grid.innerHTML = '';
+            resultsSection.classList.remove('hidden');
+
+            for (let file of uploadedFiles) {
+                const card = document.createElement('div');
+                card.className = 'bg-white border border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center h-80 animate-pulse';
+                card.innerHTML = `
+                    <div class="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mb-6"></div>
+                    <p class="text-sm text-gray-400">Analyzing ${file.name}...</p>
+                `;
+                grid.appendChild(card);
+
+                try {
+                    const rawText = await getTextFromFile(file);
+                    const info = extractLeaseInfo(rawText);
+                    
+                    // Replace spinner with real card
+                    const realCard = createResultCard(file.name, info, rawText);
+                    grid.replaceChild(realCard, card);
+                } catch (err) {
+                    card.innerHTML = `
+                        <p class="text-red-500">Failed to process ${file.name}</p>
+                        <p class="text-xs text-gray-400 mt-2">${err.message}</p>
+                    `;
+                }
+            }
+        }
+
+        function clearAll() {
+            uploadedFiles = [];
+            document.getElementById('file-list').innerHTML = '';
+            document.getElementById('results-section').classList.add('hidden');
+            document.getElementById('analyze-btn').disabled = true;
+        }
+
+        // Keyboard shortcut: Escape closes modal
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('modal');
+                if (!modal.classList.contains('hidden')) closeModal();
+            }
+        });
+
+        // Init
+        window.onload = () => {
+            // Make sure worker is set
+            if (typeof pdfjsLib !== "undefined") {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+            }
+            console.log('%c✅ Bleeding-Yellow AI Lease Analyzer ready', 'color:#eab308; font-weight:bold');
+        };
+    </script>
+</body>
+</html>
